@@ -2,44 +2,66 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi primera página</title>
+  <title>Ondas animadas</title>
   <style>
     body {
       margin: 0;
-      height: 100vh;
-      background-color: orange; /* Fondo naranja */
-      display: flex;
-      justify-content: center;
-      align-items: center;
       overflow: hidden;
+      background-color: darkorange; /* Fondo oscuro naranja */
     }
-    #cuadrado {
-      width: 50px;
-      height: 50px;
-      background: white;
-      position: absolute;
+    canvas {
+      display: block;
     }
   </style>
 </head>
 <body>
-  <div id="cuadrado"></div>
+  <canvas id="canvas"></canvas>
 
   <script>
-    const cuadrado = document.getElementById("cuadrado");
-    const velocidad = 1000; // tiempo entre movimientos (ms)
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
 
-    function moverAleatorio() {
-      const maxX = window.innerWidth - cuadrado.offsetWidth;
-      const maxY = window.innerHeight - cuadrado.offsetHeight;
-      const x = Math.random() * maxX;
-      const y = Math.random() * maxY;
+    // Ajustar tamaño de canvas
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
 
-      cuadrado.style.transform = `translate(${x}px, ${y}px)`;
+    // Parámetros de ondas
+    const waves = [
+      { amplitude: 40, wavelength: 200, speed: 0.02, phase: 0, color: "white" },
+      { amplitude: 30, wavelength: 300, speed: 0.015, phase: Math.PI / 2, color: "white" },
+      { amplitude: 20, wavelength: 150, speed: 0.03, phase: Math.PI, color: "white" }
+    ];
+
+    function drawWave({ amplitude, wavelength, speed, phase, color }, time) {
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height / 2);
+
+      for (let x = 0; x < canvas.width; x++) {
+        const y =
+          canvas.height / 2 +
+          amplitude * Math.sin((x / wavelength) * 2 * Math.PI + time * speed + phase);
+        ctx.lineTo(x, y);
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
 
-    // Primera posición y luego moverse cada cierto tiempo
-    moverAleatorio();
-    setInterval(moverAleatorio, velocidad);
+    function animate(time) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Dibujar todas las ondas
+      waves.forEach(wave => drawWave(wave, time));
+
+      requestAnimationFrame(animate);
+    }
+
+    animate(0);
   </script>
 </body>
 </html>
