@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi primera página</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background-color: orange; /* Fondo naranja */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    #cuadrado {
+      width: 50px;
+      height: 50px;
+      background: white;
+      position: absolute;
+    }
+  </style>
+</head>
+<body>
+  <div id="cuadrado"></div>
+
+  <script>
+    const cuadrado = document.getElementById("cuadrado");
+    const velocidad = 1000; // tiempo entre movimientos (ms)
+
+    function moverAleatorio() {
+      const maxX = window.innerWidth - cuadrado.offsetWidth;
+      const maxY = window.innerHeight - cuadrado.offsetHeight;
+      const x = Math.random() * maxX;
+      const y = Math.random() * maxY;
+
+      cuadrado.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    // Primera posición y luego moverse cada cierto tiempo
+    moverAleatorio();
+    setInterval(moverAleatorio, velocidad);
+  </script>
+</body>
+</html>
