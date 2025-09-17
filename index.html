@@ -1,67 +1,185 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Ondas animadas</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Vertical-Horizontal — A. Michael Noll (animación)</title>
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background-color: darkorange; /* Fondo oscuro naranja */
-    }
-    canvas {
-      display: block;
-    }
+    html,body{height:100%;margin:0}
+    body{display:flex;align-items:center;justify-content:center;background:#fff}
+    #canvas{max-width:900px;max-height:1200px;width:80vmin;height:120vmin;box-shadow:0 10px 30px rgba(0,0,0,0.08)}
+    .controls{position:fixed;left:16px;top:16px;background:rgba(255,255,255,0.95);padding:8px 10px;border-radius:8px;font-family:system-ui,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial}
+    .controls label{display:flex;align-items:center;gap:8px}
+    .credits{position:fixed;left:16px;bottom:16px;font-size:12px;color:#444}
   </style>
 </head>
 <body>
-  <canvas id="canvas"></canvas>
+  <canvas id="canvas" width="700" height="1100"></canvas>
+
+  <div class="controls">
+    <label>Velocidad <input id="speed" type="range" min="0" max="2" step="0.01" value="0.45"></label>
+    <label>Intensidad <input id="chaos" type="range" min="0" max="1" step="0.01" value="0.28"></label>
+    <label>Trazos <input id="lines" type="range" min="6" max="32" step="1" value="18"></label>
+  </div>
+
+  <div class="credits">Inspired by A. Michael Noll — <em>Vertical–Horizontal Number Three</em> (1964). Código para web — puede usarse como <strong>index.html</strong> en GitHub Pages.</div>
 
   <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-
-    // Ajustar tamaño de canvas
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+  // Canvas-based renderer that recreates the feeling of Noll's composition and
+  // animates the redrawing of vertical and horizontal rectangles.
+  (function(){
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+    const baseW = 700, baseH = 1100;
+    // keep logical size consistent for GitHub viewers
+    function resize(){
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * DPR);
+      canvas.height = Math.round(rect.height * DPR);
+      ctx.setTransform(DPR,0,0,DPR,0,0);
     }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
+    resize();
+    window.addEventListener('resize', resize);
 
-    // Parámetros de ondas
-    const waves = [
-     { amplitude: 70, wavelength: 200, speed: 0.002, phase: 0, color: "white" },
-      { amplitude: 50, wavelength: 300, speed: 0.015, phase: Math.PI / 2, color: "white" },
-      { amplitude: 60, wavelength: 450, speed: 0.003, phase: Math.PI, color: "white" }
-    ];
+    // Parameters and GUI
+    const gui = {
+      speed: parseFloat(document.getElementById('speed').value),
+      chaos: parseFloat(document.getElementById('chaos').value),
+      lines: parseInt(document.getElementById('lines').value,10)
+    };
+    document.getElementById('speed').addEventListener('input', e=> gui.speed = parseFloat(e.target.value));
+    document.getElementById('chaos').addEventListener('input', e=> gui.chaos = parseFloat(e.target.value));
+    document.getElementById('lines').addEventListener('input', e=> recreate(parseInt(e.target.value,10)));
 
-    function drawWave({ amplitude, wavelength, speed, phase, color }, time) {
-      ctx.beginPath();
-      ctx.moveTo(0, canvas.height / 2);
+    // Helper: random with normal-ish distribution
+    function randn(scale=1){
+      // Box-Muller
+      let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+      return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)*scale;
+    }
 
-      for (let x = 0; x < canvas.width; x++) {
-        const y =
-          canvas.height / 2 +
-          amplitude * Math.sin((x / wavelength) * 2 * Math.PI + time * speed + phase);
-        ctx.lineTo(x, y);
+    // Rectangle model: vertical/horizontal oriented strokes using two rectangles per 'bar'
+    let bars = [];
+    function recreate(n=18){
+      bars = [];
+      // build a central cluster with many vertical slabs, and supporting horizontals
+      const centerX = baseW*0.53;
+      const centerY = baseH*0.55;
+      for(let i=0;i<n;i++){
+        const vertical = Math.random() < 0.7; // more vertical bars
+        const w = vertical ? (10 + Math.random()*60) : (40 + Math.random()*120);
+        const h = vertical ? (200 + Math.random()*650) : (40 + Math.random()*240);
+        const x = centerX + randn(80) + (Math.random()-0.5)*220;
+        const y = centerY + randn(150) + (Math.random()-0.5)*240;
+        const thickness = 1 + Math.round(Math.random()*2);
+        const dash = Math.random() < 0.08;
+        bars.push({x,y,w,h,thickness,vertical,dash,phase:Math.random()*Math.PI*2,anchorX:x,anchorY:y});
+      }
+      // add some large framing rectangles
+      for(let i=0;i<4;i++){
+        const w = 420 + i*40;
+        const h = 980 - i*40;
+        const x = (baseW - w)/2 + (i-1.5)*12;
+        const y = (baseH - h)/2 + (i-1.5)*6;
+        bars.push({x,y,w,h,thickness:1,vertical:true,dash:false,phase:Math.random()*Math.PI});
+      }
+    }
+
+    recreate(gui.lines);
+
+    // animation
+    let t = 0;
+    function draw(now){
+      t += 0.016 * gui.speed;
+      // white background
+      ctx.clearRect(0,0,canvas.width/DPR,canvas.height/DPR);
+
+      // scale drawing to logical baseW/baseH, centered in canvas
+      const displayW = canvas.width/DPR, displayH = canvas.height/DPR;
+      const scale = Math.min(displayW/baseW, displayH/baseH);
+      ctx.save();
+      const offsetX = (displayW - baseW*scale)/2;
+      const offsetY = (displayH - baseH*scale)/2;
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
+
+      // background white rectangle (frame)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0,0,baseW,baseH);
+
+      // draw bars with slight temporal jitter to simulate re-drawing lines
+      // we draw multiple passes with subtle offsets
+      for(let pass=0;pass<2;pass++){
+        for(let i=0;i<bars.length;i++){
+          const b = bars[i];
+          // target anchor drifts slowly
+          const driftX = Math.sin(t*0.6 + b.phase*1.1 + i)* (4*gui.chaos);
+          const driftY = Math.cos(t*0.4 + b.phase*0.9 + i)* (6*gui.chaos);
+
+          // small jitter per-pass
+          const jitter = 1.0 * gui.chaos * (pass===0?1:-1);
+          const jitterX = randn(0.8) * jitter;
+          const jitterY = randn(0.8) * jitter;
+
+          const x = b.anchorX + driftX + jitterX;
+          const y = b.anchorY + driftY + jitterY;
+
+          ctx.lineWidth = Math.max(0.8, b.thickness);
+          ctx.strokeStyle = 'rgba(20,20,20,0.95)';
+          if(b.dash) ctx.setLineDash([4,6]); else ctx.setLineDash([]);
+
+          // draw as an outlined rectangle (like the original piece) but with double-stroke for depth
+          ctx.beginPath();
+          ctx.rect(x - b.w/2, y - b.h/2, b.w, b.h);
+          ctx.stroke();
+
+          // second outline, slightly shifted to produce layering feel
+          ctx.beginPath();
+          ctx.lineWidth = Math.max(0.6, b.thickness-0.2);
+          ctx.setLineDash([]);
+          ctx.strokeStyle = 'rgba(10,10,10,0.65)';
+          ctx.rect(x - b.w/2 + Math.sin(t*0.9+i)*0.6, y - b.h/2 + Math.cos(t*0.7+i)*0.6, b.w, b.h);
+          ctx.stroke();
+        }
       }
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      // subtle grid line representing the central horizontal axis
+      ctx.beginPath();
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+      ctx.moveTo(0, baseH*0.48);
+      ctx.lineTo(baseW, baseH*0.48);
       ctx.stroke();
+
+      ctx.restore();
+
+      requestAnimationFrame(draw);
     }
 
-    function animate(time) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(draw);
 
-      // Dibujar todas las ondas
-      waves.forEach(wave => drawWave(wave, time));
+    // periodically nudge anchors to new positions so composition slowly rearranges
+    setInterval(()=>{
+      const intensity = 12 * gui.chaos + 1;
+      for(let i=0;i<bars.length;i++){
+        const b = bars[i];
+        b.anchorX += randn(intensity);
+        b.anchorY += randn(intensity);
+        // keep anchors roughly inside the canvas
+        b.anchorX = Math.max(20, Math.min(baseW-20, b.anchorX));
+        b.anchorY = Math.max(20, Math.min(baseH-20, b.anchorY));
+      }
+    }, 1200);
 
-      requestAnimationFrame(animate);
-    }
+    // small interaction: click to randomize composition
+    canvas.addEventListener('click', ()=>{
+      recreate(gui.lines);
+    });
 
-    animate(0);
+    // initial guidance in console for debug / editing
+    console.log('Noll-inspired animated composition running. Click canvas to randomize.');
+  })();
   </script>
 </body>
 </html>
